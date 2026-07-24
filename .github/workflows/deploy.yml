@@ -1,0 +1,105 @@
+name: CI/CD Capstone Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # 🧪 STEP 1: TEST
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install Dependencies
+        run: |
+          cd app
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest
+        run: |
+          cd app
+          pytest test_app.py
+
+  # ☁️ STEP 2: TERRAFORM INFRASTRUCTURE
+  terraform:
+    name: Provision Azure Infrastructure
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      vm_public_ip: ${{ steps.get-ip.outputs.ip }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply -auto-approve -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+
+      - name: Extract Public IP Output
+        id: get-ip
+        run: |
+          cd terraform
+          IP=$(terraform output -raw public_ip_address)
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+  # 🔧 STEP 3: ANSIBLE CONFIGURATION & DOCKER DEPLOYMENT
+  deploy:
+    name: Configure & Deploy App
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+
+      - name: Add SSH Key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Wait for SSH to be ready
+        run: |
+          sleep 30
+          ssh-keyscan -H ${{ needs.terraform.outputs.vm_public_ip }} >> ~/.ssh/known_hosts
+
+      - name: Run Ansible Playbook
+        run: |
+          cd ansible
+          ansible-playbook -i "${{ needs.terraform.outputs.vm_public_ip }}," -u azureuser setup-node.yml
+
+      - name: Copy App Files to Azure VM
+        run: |
+          scp -r app/* azureuser@${{ needs.terraform.outputs.vm_public_ip }}:~/app/
+
+      - name: Launch Container Stack on Azure VM
+        run: |
+          ssh azureuser@${{ needs.terraform.outputs.vm_public_ip }} "cd ~/app && docker compose up -d --build"
