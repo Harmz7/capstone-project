@@ -55,10 +55,10 @@ jobs:
           cd terraform
           terraform init
 
-      - name: Terraform Apply
-        run: |
-          cd terraform
-          terraform apply -auto-approve -var="ssh_public_key=${{ secrets.SSH_PUBLIC_KEY }}"
+    - name: Terraform Apply
+      run: |
+    cd terraform
+    terraform apply -auto-approve -var="ssh_public_key=${{ secrets.sshpublickey }}"
 
       - name: Extract Public IP Output
         id: get-ip
@@ -82,9 +82,9 @@ jobs:
           sudo apt install -y ansible
 
       - name: Add SSH Key
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+  uses: webfactory/ssh-agent@v0.8.0
+  with:
+    ssh-private-key: ${{ secrets.sshprivatekey }}
 
       - name: Wait for SSH to be ready
         run: |
