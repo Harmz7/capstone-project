@@ -32,7 +32,7 @@ jobs:
           pytest test_app.py
 
   # ☁️ STEP 2: TERRAFORM INFRASTRUCTURE
-  terraform:
+terraform:
     name: Provision Azure Infrastructure
     needs: test
     runs-on: ubuntu-latest
