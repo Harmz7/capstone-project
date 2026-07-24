@@ -13,7 +13,7 @@ provider "azurerm" {
 
 resource "azurerm_resource_group" "rg" {
   name     = "capstone-rg"
-  location = "eastus"
+  location = "eastus2"
 }
 
 resource "azurerm_virtual_network" "vnet" {
