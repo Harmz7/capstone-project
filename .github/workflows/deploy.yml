@@ -59,6 +59,7 @@ jobs:
 
       - name: Terraform Apply
         run: |
+
           cd terraform
           terraform apply -auto-approve -var="ssh_public_key=${{ secrets.sshpublickey }}"
 
@@ -96,12 +97,13 @@ jobs:
       - name: Run Ansible Playbook
         run: |
           cd ansible
-          ansible-playbook -i "${{ needs.terraform.outputs.vm_public_ip }}," -u azureuser setup-node.yml
+          ansible-playbook -i "${{ needs.terraform.outputs.vm_public_ip }}," -u azureuser playbook.yml
 
       - name: Copy App Files to Azure VM
         run: |
+          ssh azureuser@${{ needs.terraform.outputs.vm_public_ip }} "mkdir -p ~/app"
           scp -r app/* azureuser@${{ needs.terraform.outputs.vm_public_ip }}:~/app/
 
       - name: Launch Container Stack on Azure VM
         run: |
-          ssh azureuser@${{ needs.terraform.outputs.vm_public_ip }} "cd ~/app && docker compose up -d --build"
+          ssh azureuser@${{ needs.terraform.outputs.vm_public_ip }} "cd ~/app && sudo docker compose up -d --build"
